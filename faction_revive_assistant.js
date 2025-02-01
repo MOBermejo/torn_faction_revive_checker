@@ -8,8 +8,6 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=torn.com
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @grant        GM_xmlhttpRequest
-// @require       GM_xmlhttpRequest
 // @connect      api.torn.com
 // ==/UserScript==
 
@@ -101,15 +99,15 @@
 
     // Scrape faction page for users in hospital
     async function updateFactionMembers() {
-        // Set time since last update for rate limiting
-        let lastUpdate = 0;
+        // Ensure table has been loaded
+        await observeFactionMembers();
 
         // Parse all rows to find members in hosp
-        await observeFactionMembers();
-        const rows = document.querySelectorAll(".table-body .table-row");
+        const rows = document.querySelectorAll(".members-list .table-body .table-row");
 
         // Create progress box
         let processed = 0;
+        let apiRequestCount = 0;
         let revivable = 0;
         const total = rows.length;
         const progressDiv = document.createElement("div");
@@ -123,6 +121,9 @@
         progressDiv.style.zIndex = "1000";
         document.body.appendChild(progressDiv);
 
+        // Track script run time for rate-limiting
+        let runTime = Date.now();
+
         for (const row of rows) {
             const profileLink = row.querySelector('a[href*="/profiles.php?XID="]');
             const status = row.querySelector(".status span").textContent.trim();
@@ -133,13 +134,13 @@
                 if (match && match[1]) {
                     let userId = match[1];
 
-                    // Calculate the time since the last request
-                    const now = Date.now();
-                    const timeSinceLastUpdate = now - lastUpdate;
+                    // Calculate expected elapsed time
+                    const currentElapsedTime = API_DELAY * apiRequestCount;
+                    const actualElapsedTime = Date.now() - runTime;
 
                     // Delay if necessary
-                    if (timeSinceLastUpdate < API_DELAY) {
-                        let delayTime = API_DELAY - timeSinceLastUpdate;
+                    if (actualElapsedTime < expectedElapsedTime) {
+                        let delayTime = expectedElapsedTime - actualElapsedTime;
                         await new Promise((resolve) => setTimeout(resolve, delayTime));
                     }
 
@@ -163,9 +164,8 @@
                         revivable++;
                     }
 
-                    // Record the last update timestamp
-                    lastUpdate = Date.now();
-
+                    // Increment API request count
+                    apiRequestCount++
                 }
             }
 
@@ -182,7 +182,6 @@
         console.log("Faction members processed successfully");
     }
 
-    window.onload = function () {
-        start();
-    };
+    // Initiate script
+    start();
 })();
