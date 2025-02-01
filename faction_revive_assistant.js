@@ -18,27 +18,39 @@
     const API_DELAY = 750;
 
     // Obtain apiKey from TornPDA or JSON store
-    let apiKey = '###PDA-APIKEY###' !== '###PDA-APIKEY###' ? '###PDA-APIKEY###' : GM_getValue("apiKey", "");
+    const pdaKey = '###PDA-APIKEY###'; // !== '###PDA-APIKEY###' ? '###PDA-APIKEY###' : GM_getValue("apiKey", "");
+
+    let apiKey = '';
 
     // Function to verify if an API key is available, and prompt for a key if not
     async function verifyApiKey() {
-        if (!apiKey) {
-            apiKey = prompt("Please enter a public access API key to continue:")
-            if (apiKey) {
-                GM_setValue("apiKey", apiKey);
-                const isValid = await validateApiKey(apiKey);
-                if (isValid) {
-                    alert("Your API key has been validated and saved. Thank you.");
-                } else {
-                    alert("API key is not valid. Please refresh the page and try again.");
-                    GM_setValue("apiKey", "");
-                    throw new Error("Invalid API key.");
-                }
-
-            } else {
-                alert("API key not set. Please refresh the page and try again.")
-            }
+        if (pdaKey !== '###PDA-APIKEY###') {
+            return pdaKey;
         }
+
+
+        // Attempt to retrieve key from store
+        apiKey = localStorage.getItem("reviveCheckApiKey") || "";
+        if (apiKey) {
+            return apiKey;
+        }
+
+        apiKey = prompt("Please enter a public access API key to continue:")
+        if (apiKey) {
+            localStorage.setItem("reviveCheckApiKey", apiKey);
+            const isValid = await validateApiKey(apiKey);
+            if (isValid) {
+                return apiKey;
+            } else {
+                alert("API key is not valid. Please refresh the page and try again.");
+                localStorage.setItem("reviveCheckApiKey", "");
+                return "";
+            }
+
+        } else {
+            return "";
+        }
+
     }
 
     // Validate an API key
@@ -58,7 +70,7 @@
     }
 
     // Get user data
-    async function queryUserData(userId) {
+    async function queryUserData(userId, key) {
         try {
             const response = await fetch(`https://api.torn.com/v2/user/${userId}/`, {
                 headers: {
@@ -98,7 +110,7 @@
     }
 
     // Scrape faction page for users in hospital
-    async function updateFactionMembers() {
+    async function updateFactionMembers(key) {
         // Ensure table has been loaded
         await observeFactionMembers();
 
@@ -144,7 +156,7 @@
                         await new Promise((resolve) => setTimeout(resolve, delayTime));
                     }
 
-                    let userData = await queryUserData(userId);
+                    let userData = await queryUserData(userId, key);
                     if (userData && userData.revivable) {
                         // Get current user div
                         const userDiv = row.querySelector('[class^="userInfoBox"]');
@@ -176,7 +188,7 @@
     }
 
     async function start() {
-        await verifyApiKey();
+        let key = await verifyApiKey();
         console.log("Processing faction members...");
         await updateFactionMembers();
         console.log("Faction members processed successfully");
