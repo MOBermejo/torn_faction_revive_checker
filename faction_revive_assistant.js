@@ -135,7 +135,7 @@
                     let userId = match[1];
 
                     // Calculate expected elapsed time
-                    const currentElapsedTime = API_DELAY * apiRequestCount;
+                    const expectedElapsedTime = API_DELAY * apiRequestCount;
                     const actualElapsedTime = Date.now() - runTime;
 
                     // Delay if necessary
