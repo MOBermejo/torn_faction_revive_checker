@@ -6,9 +6,6 @@
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=torn.com
-// @grant        GM_getValue
-// @grant        GM_setValue
-// @connect      api.torn.com
 // ==/UserScript==
 
 (function() {
