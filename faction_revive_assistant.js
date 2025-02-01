@@ -55,7 +55,7 @@
         try {
             const response = await fetch(`https://api.torn.com/v2/user/`, {
                 headers: {
-                    "Authorization": `ApiKey ${apiKey}`
+                    "Authorization": `ApiKey ${key}`
                 }
             });
             if (!response.ok) throw new Error("Unable to authorize");
@@ -71,7 +71,7 @@
         try {
             const response = await fetch(`https://api.torn.com/v2/user/${userId}/`, {
                 headers: {
-                    "Authorization": `ApiKey ${apiKey}`
+                    "Authorization": `ApiKey ${key}`
                 }
             });
             if (!response.ok) throw new Error("Unable to query user");
