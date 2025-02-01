@@ -9,6 +9,7 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
+// @require       GM_xmlhttpRequest
 // @connect      api.torn.com
 // ==/UserScript==
 
@@ -19,7 +20,7 @@
     const API_DELAY = 1000;
 
     // Obtain apiKey from store
-    let apiKey = '###PDA-APIKEY###' ? '###PDA-APIKEY###' : GM_getValue("apiKey", "");
+    let apiKey = '###PDA-APIKEY###' != '###PDA-APIKEY###' ? '###PDA-APIKEY###' : GM_getValue("apiKey", "");
 
     // Helper function to wrap GM_xmlhttpRequest in a Promise
     function httpRequest(options) {
@@ -90,13 +91,43 @@
         }
     }
 
+    // Function to monitor faction members table
+    async function observeFactionMembers() {
+        return new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+                const rows = document.querySelectorAll(".table-body .table-row");
+                if (rows.length > 0) {
+                    observer.disconnect();
+                    resolve();
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        });
+    }
+
     // Scrape faction page for users in hospital
     async function updateFactionMembers() {
-        // Set time since last update
+        // Set time since last update for rate limiting
         let lastUpdate = 0;
 
         // Parse all rows to find members in hosp
+        await waitForFactionList();
         const rows = document.querySelectorAll(".table-body .table-row");
+
+        // Create progress box
+        let processed, revivable = 0;
+        const total = rows.length;
+        const progressDiv = document.createElement("div");
+        progressDiv.style.position = "fixed";
+        progressDiv.style.bottom = "10px";
+        progressDiv.style.right = "10px";
+        progressDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+        progressDiv.style.color = "white";
+        progressDiv.style.padding = "10px";
+        progressDiv.style.borderRadius = "5px";
+        progressDiv.style.zIndex = "1000";
+        document.body.appendChild(progressDiv);
+        
         for (const row of rows) {
             const profileLink = row.querySelector('a[href*="/profiles.php?XID="]');
             const status = row.querySelector(".status span").textContent.trim();
@@ -133,6 +164,9 @@
 
                         // Append the new div to the userDiv
                         userDiv.appendChild(reviveDiv);
+
+                        // Update revivable counter
+                        revivable++;
                     }
 
                     // Record the last update timestamp
@@ -140,6 +174,10 @@
 
                 }
             }
+
+            // Update progress indicator
+            processed++;
+            progressDiv.textContent = `Progress: ${processed / total}% | Revivable: ${revivable}`;
         }
     }
 
