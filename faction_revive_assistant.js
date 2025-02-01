@@ -19,19 +19,8 @@
     // Set rate limit delay for API (in ms)
     const API_DELAY = 1000;
 
-    // Obtain apiKey from store
-    let apiKey = '###PDA-APIKEY###' != '###PDA-APIKEY###' ? '###PDA-APIKEY###' : GM_getValue("apiKey", "");
-
-    // Helper function to wrap GM_xmlhttpRequest in a Promise
-    function httpRequest(options) {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                ...options,
-                onload: (response) => resolve(response),
-                onerror: (error) => reject(error),
-            });
-        });
-    }
+    // Obtain apiKey from TornPDA or JSON store
+    let apiKey = '###PDA-APIKEY###' !== '###PDA-APIKEY###' ? '###PDA-APIKEY###' : GM_getValue("apiKey", "");
 
     // Function to verify if an API key is available, and prompt for a key if not
     async function verifyApiKey() {
@@ -57,15 +46,13 @@
     // Validate an API key
     async function validateApiKey(key) {
         try {
-            const response = await httpRequest({
-                method: 'GET',
-                url: `https://api.torn.com/v2/user/`,
+            const response = await fetch(`https://api.torn.com/v2/user/`, {
                 headers: {
-                    "Authorization": `ApiKey ${key}`,
+                    "Authorization": `ApiKey ${apiKey}`
                 }
             });
-            const data = JSON.parse(response.responseText);
-            return !data.error;
+            if (!response.ok) throw new Error("Unable to authorize");
+            return true;
         } catch (error) {
             console.error("Failed to validate API key:", error);
             return false;
@@ -75,15 +62,13 @@
     // Get user data
     async function queryUserData(userId) {
         try {
-            const response = await httpRequest({
-                method: 'GET',
-                url: `https://api.torn.com/v2/user/${userId}/`,
+            const response = await fetch(`https://api.torn.com/v2/user/${userId}/`, {
                 headers: {
-                    "Authorization": `ApiKey ${apiKey}`,
+                    "Authorization": `ApiKey ${apiKey}`
                 }
             });
-            const data = JSON.parse(response.responseText);
-            return data;
+            if (!response.ok) throw new Error("Unable to query user");
+            return await response.json();
         } catch (error) {
             console.error("Failed to validate API key:", error);
             GM_setValue("apiKey", "");
@@ -111,15 +96,18 @@
         let lastUpdate = 0;
 
         // Parse all rows to find members in hosp
-        await waitForFactionList();
+        await observeFactionMembers();
         const rows = document.querySelectorAll(".table-body .table-row");
 
         // Create progress box
-        let processed, revivable = 0;
+        let processed = 0;
+        let revivable = 0;
         const total = rows.length;
+        console.log('processed');
+        console.log('total rows', total);
         const progressDiv = document.createElement("div");
         progressDiv.style.position = "fixed";
-        progressDiv.style.bottom = "10px";
+        progressDiv.style.top = "10px";
         progressDiv.style.right = "10px";
         progressDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
         progressDiv.style.color = "white";
@@ -127,7 +115,7 @@
         progressDiv.style.borderRadius = "5px";
         progressDiv.style.zIndex = "1000";
         document.body.appendChild(progressDiv);
-        
+
         for (const row of rows) {
             const profileLink = row.querySelector('a[href*="/profiles.php?XID="]');
             const status = row.querySelector(".status span").textContent.trim();
@@ -145,7 +133,6 @@
                     // Delay if necessary
                     if (timeSinceLastUpdate < API_DELAY) {
                         let delayTime = API_DELAY - timeSinceLastUpdate;
-                        console.log('delay time', delayTime);
                         await new Promise((resolve) => setTimeout(resolve, delayTime));
                     }
 
@@ -177,7 +164,7 @@
 
             // Update progress indicator
             processed++;
-            progressDiv.textContent = `Progress: ${processed / total}% | Revivable: ${revivable}`;
+            progressDiv.textContent = `Progress: ${total > 0 ? (processed / total * 100).toFixed(0) : 0}% | Revivable: ${revivable}`;
         }
     }
 
