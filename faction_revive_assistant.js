@@ -17,7 +17,7 @@
     'use strict';
 
     // Set rate limit delay for API (in ms)
-    const API_DELAY = 1000;
+    const API_DELAY = 750;
 
     // Obtain apiKey from TornPDA or JSON store
     let apiKey = '###PDA-APIKEY###' !== '###PDA-APIKEY###' ? '###PDA-APIKEY###' : GM_getValue("apiKey", "");
@@ -79,13 +79,22 @@
     // Function to monitor faction members table
     async function observeFactionMembers() {
         return new Promise(resolve => {
+            // Check if table has already loaded (TornPDA)
+            const rows = document.querySelectorAll(".members-list .table-body .table-row");
+            if (rows.length > 0) {
+                resolve();
+                return;
+            }
+    
+            // If not, create observer to continue script after table has loaded
             const observer = new MutationObserver(() => {
-                const rows = document.querySelectorAll(".table-body .table-row");
-                if (rows.length > 0) {
+                const updatedRows = document.querySelectorAll(".members-list .table-body .table-row");
+                if (updatedRows.length > 0) {
                     observer.disconnect();
                     resolve();
                 }
             });
+    
             observer.observe(document.body, { childList: true, subtree: true });
         });
     }
@@ -103,12 +112,10 @@
         let processed = 0;
         let revivable = 0;
         const total = rows.length;
-        console.log('processed');
-        console.log('total rows', total);
         const progressDiv = document.createElement("div");
         progressDiv.style.position = "fixed";
-        progressDiv.style.top = "10px";
-        progressDiv.style.right = "10px";
+        progressDiv.style.bottom = "10px";
+        progressDiv.style.left = "10px";
         progressDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
         progressDiv.style.color = "white";
         progressDiv.style.padding = "10px";
@@ -142,7 +149,7 @@
                         const userDiv = row.querySelector('[class^="userInfoBox"]');
 
                         // Create a new div for the revive status
-                        const reviveInfo = `Reviveable`;
+                        const reviveInfo = `(Revive)`;
                         const reviveDiv = document.createElement("div");
                         reviveDiv.style.fontWeight = "bold";
                         reviveDiv.style["margin-left"] = "8px";
