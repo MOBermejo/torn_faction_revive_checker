@@ -19,7 +19,7 @@
     const API_DELAY = 1000;
 
     // Obtain apiKey from store
-    let apiKey = GM_getValue("apiKey", "");
+    let apiKey = '###PDA-APIKEY###' ? '###PDA-APIKEY###' : GM_getValue("apiKey", "");
 
     // Helper function to wrap GM_xmlhttpRequest in a Promise
     function httpRequest(options) {
