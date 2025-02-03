@@ -111,6 +111,9 @@
         // Ensure table has been loaded
         await observeFactionMembers();
 
+        // Verify API key after table has fully loaded
+        await verifyApiKey();
+
         // Parse all rows to find members in hosp
         const rows = document.querySelectorAll(".members-list .table-body .table-row");
 
@@ -185,7 +188,6 @@
     }
 
     async function start() {
-        let key = await verifyApiKey();
         console.log("Processing faction members...");
         await updateFactionMembers();
         console.log("Faction members processed successfully");
