@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.7
+// @version      1.8
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -14,19 +14,8 @@
     // Set rate limit delay for API (in ms)
     const API_DELAY = 750;
 
-    // Obtain apiKey from TornPDA or JSON store
-    const pdaKey = '###PDA-APIKEY###'; // !== '###PDA-APIKEY###' ? '###PDA-APIKEY###' : GM_getValue("apiKey", "");
-
-    let apiKey = '';
-
     // Function to verify if an API key is available, and prompt for a key if not
     async function verifyApiKey() {
-        if (pdaKey !== '###PDA-APIKEY###') {
-            localStorage.setItem("reviveCheckApiKey", pdaKey);
-            return pdaKey;
-        }
-
-
         // Attempt to retrieve key from store
         apiKey = localStorage.getItem("reviveCheckApiKey") || "";
         if (apiKey) {
