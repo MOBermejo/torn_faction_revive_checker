@@ -178,10 +178,33 @@
             processed++;
             progressDiv.textContent = `Progress: ${total > 0 ? (processed / total * 100).toFixed(0) : 0}% | Revivable: ${revivable}`;
         }
+
+        rogressDiv.textContent = `Revivable: ${revivable}`
     }
 
-    // Initiate script
+    // Function to initialize the script when the faction profile page is loaded
+    async function initReviveAssistant() {
+        await updateFactionMembers();
+    }
+
+    // Use MutationObserver to detect when the faction page changes in Torn PDA
+    const observer = new MutationObserver((mutations) => {
+        for (let mutation of mutations) {
+            if (mutation.type === "childList") {
+                if (document.querySelector('.members-list .table-body')) { 
+                    observer.disconnect();
+                    initReviveAssistant(); 
+                    observer.observe(document.body, { childList: true, subtree: true });
+                }
+            }
+        }
+    });
+
+    // 
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // 
     window.addEventListener('load', async function () {
         await updateFactionMembers();
-    })
+    });
 })();
