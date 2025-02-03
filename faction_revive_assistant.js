@@ -112,7 +112,7 @@
         await observeFactionMembers();
 
         // Verify API key after table has fully loaded
-        await verifyApiKey();
+        let apiKey = await verifyApiKey();
 
         // Parse all rows to find members in hosp
         const rows = document.querySelectorAll(".members-list .table-body .table-row");
@@ -156,7 +156,7 @@
                         await new Promise((resolve) => setTimeout(resolve, delayTime));
                     }
 
-                    let userData = await queryUserData(userId, key);
+                    let userData = await queryUserData(userId, apiKey);
                     if (userData && userData.revivable) {
                         // Get current user div
                         const userDiv = row.querySelector('[class^="userInfoBox"]');
