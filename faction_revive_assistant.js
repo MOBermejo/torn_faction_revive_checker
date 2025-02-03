@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -22,6 +22,7 @@
     // Function to verify if an API key is available, and prompt for a key if not
     async function verifyApiKey() {
         if (pdaKey !== '###PDA-APIKEY###') {
+            localStorage.setItem("reviveCheckApiKey", pdaKey);
             return pdaKey;
         }
 
@@ -133,6 +134,9 @@
         progressDiv.style.zIndex = "1000";
         document.body.appendChild(progressDiv);
 
+        // If API is unavailable, then display message
+        progressDiv.textContent = `Unable to verify API key.`;
+
         // Track script run time for rate-limiting
         let runTime = Date.now();
 
@@ -162,7 +166,7 @@
                         const userDiv = row.querySelector('[class^="userInfoBox"]');
 
                         // Create a new div for the revive status
-                        const reviveInfo = `(Revive)`;
+                        const reviveInfo = `(Revives On)`;
                         const reviveDiv = document.createElement("div");
                         reviveDiv.style.fontWeight = "bold";
                         reviveDiv.style["margin-left"] = "8px";
@@ -187,14 +191,8 @@
         }
     }
 
-    async function start() {
-        console.log("Processing faction members...");
-        await updateFactionMembers();
-        console.log("Faction members processed successfully");
-    }
-
     // Initiate script
-    window.addEventListener('load', function () {
-        start();
+    window.addEventListener('load', async function () {
+        await updateFactionMembers();
     })
 })();
