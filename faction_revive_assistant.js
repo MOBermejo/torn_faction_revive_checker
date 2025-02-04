@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.16
+// @version      1.17
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -80,7 +80,7 @@
             return await response.json();
         } catch (error) {
             console.error("Failed to validate API key:", error);
-            localStorage.setItem("reviveCheckApiKey", "");
+            localStorage.removeItem("reviveCheckApiKey");
             return false;
         }
     }
@@ -136,7 +136,7 @@
 
                 // Query user information and add indicator if they are in the hospital
                 const match = profileLink.href.match(/XID=(\d+)/);
-                if (match && match[1]) {
+                if (match) {
                     let userId = match[1];
 
                     // Calculate expected elapsed time
@@ -145,25 +145,24 @@
 
                     // Delay if necessary
                     if (actualElapsedTime < expectedElapsedTime) {
-                        let delayTime = expectedElapsedTime - actualElapsedTime;
-                        await new Promise((resolve) => setTimeout(resolve, delayTime));
+                        await new Promise(resolve => setTimeout(resolve, expectedElapsedTime - actualElapsedTime));
                     }
 
                     let userData = await queryUserData(userId, apiKey);
-                    if (userData && userData.revivable) {
+                    if (userData?.revivable) {
                         // Get current user div
                         const userDiv = row.querySelector('[class^="userInfoBox"]');
 
-                        // Create a new div for the revive status
-                        const reviveInfo = `(Revives On)`;
-                        const reviveDiv = document.createElement("div");
-                        reviveDiv.style.fontWeight = "bold";
-                        reviveDiv.style["margin-left"] = "8px";
-                        reviveDiv.style.color = "green";
-                        reviveDiv.textContent = reviveInfo;
-
-                        // Append the new div to the userDiv
-                        userDiv.appendChild(reviveDiv);
+                        // Only update indicator once
+                        if (!userDiv.querySelector(".revivable-indicator")) {
+                            const reviveDiv = document.createElement("div");
+                            reviveDiv.className = "revivable-indicator";
+                            reviveDiv.style.fontWeight = "bold";
+                            reviveDiv.style.marginLeft = "8px";
+                            reviveDiv.style.color = "green";
+                            reviveDiv.textContent = "(Revivable)";
+                            userDiv.appendChild(reviveDiv);
+                        }
 
                         // Update revivable counter
                         revivable++;
@@ -189,14 +188,25 @@
 
         observer = new MutationObserver(() => {
             const now = Date.now();
-            if (!isRunning && now - lastRunTime > 5000 && document.querySelector(".members-list .table-body .table-row")) {
-                console.log("Detected faction member table update. Running script...");
-                observer.disconnect();
-                updateFactionMembers().finally(() => startObserver());
+            if (!isRunning && now - lastRunTime > 5000) {
+                const memberTable = mutations.some(mutation =>
+                    [...mutation.addedNodes].some(node =>
+                        node.nodeType === 1 && node.matches(".members-list .table-body .table-row")
+                    )
+                );
+
+                if (memberTable) {
+                    console.log("Detected faction member table update. Running script...");
+                    observer.disconnect(); // Stop observing while running
+                    updateFactionMembers().finally(() => startObserver());
+                }
             }
         });
 
-        observer.observe(document.querySelector(".members-list .table-body") || document.body, { childList: true, subtree: true });
+        const membersList = document.querySelector(".members-list .table-body");
+        if (membersList) {
+            observer.observe(membersList, { childList: true, subtree: true });
+        }
     }
 
     window.addEventListener('load', () => updateFactionMembers());
