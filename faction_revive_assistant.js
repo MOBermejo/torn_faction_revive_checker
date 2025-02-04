@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.21
+// @version      1.22
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -220,36 +220,9 @@
         }
     }
 
-    // **Detect TornPDA Navigation Changes (PushState + PopState)**
-    function interceptNavigation() {
-        const originalPushState = history.pushState;
-        const originalReplaceState = history.replaceState;
-
-        function handleNavChange() {
-            if (location.href.includes("factions.php?step=profile")) {
-                console.log("Detected TornPDA navigation change. Running script...");
-                updateFactionMembers();
-            }
-        }
-
-        history.pushState = function (...args) {
-            originalPushState.apply(this, args);
-            handleNavChange();
-        };
-
-        history.replaceState = function (...args) {
-            originalReplaceState.apply(this, args);
-            handleNavChange();
-        };
-
-        window.addEventListener("popstate", handleNavChange);
-    }
 
 
-    // **Initialize Observers and Hooks**
-    window.addEventListener('load', () => {
-        updateFactionMembers();
-        startObserver();
-        interceptNavigation();
-    });
+    updateFactionMembers();
+    startObserver();
+
 })();
