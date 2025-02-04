@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.17
+// @version      1.18
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -88,6 +88,8 @@
     // Scrape faction page for users in hospital
     async function updateFactionMembers(key) {
         if (isRunning) return;
+
+        // Variables to ensure function isn't trigger by observer too often
         isRunning = true;
         lastRunTime = Date.now();
 
@@ -122,9 +124,6 @@
             document.body.appendChild(progressDiv);
         }
         progressDiv.textContent = `Processing faction members...`;
-
-        // If API is unavailable, then display message
-        progressDiv.textContent = `Unable to verify API key.`;
 
         // Track script run time for rate-limiting
         let runTime = Date.now();
@@ -203,9 +202,20 @@
             }
         });
 
+        // Observe members list for changes to the table
         const membersList = document.querySelector(".members-list .table-body");
         if (membersList) {
             observer.observe(membersList, { childList: true, subtree: true });
+        }
+
+        // Observe container to handle refreshes on TornPDA
+        const contentWrapper = document.querySelector(".content-wrapper");
+        if (contentWrapper) {
+            const pageObserver = new MutationObserver(() => {
+                console.log("Detected TornPDA page refresh. Re-running script...");
+                updateFactionMembers();
+            });
+            pageObserver.observe(contentWrapper, { childList: true, subtree: false });
         }
     }
 
