@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.13
+// @version      1.14
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -14,9 +14,15 @@
     // Set rate limit delay for API (in ms)
     const API_DELAY = 750;
 
+    // Variables for script
+    let isRunning = false;
+    let observer = null;
+    let lastRunTime = 0;
+
+
     // Function to verify if an API key is available, and prompt for a key if not
     async function getApiKey() {
-        // Attempt to retrieve key from store
+        // Attempt to retrieve key from local storage
         let apiKey = localStorage.getItem("reviveCheckApiKey") || "";
         if (apiKey) {
             return apiKey;
@@ -30,10 +36,8 @@
                 return apiKey;
             } else {
                 alert("API key is not valid. Please refresh the page and try again.");
-                localStorage.setItem("reviveCheckApiKey", "");
-                return "";
+                localStorage.removeItem("reviveCheckApiKey");
             }
-
         } else {
             return "";
         }
@@ -73,39 +77,15 @@
         }
     }
 
-    // Function to monitor faction members table
-    async function observeFactionMembers() {
-        return new Promise(resolve => {
-            // Check if table has been populated
-            const rows = document.querySelectorAll(".members-list .table-body .table-row");
-            if (rows.length > 0) {
-                resolve();
-                return;
-            }
-    
-            // If not, create observer to continue script after table has loaded
-            const observer = new MutationObserver(() => {
-                const updatedRows = document.querySelectorAll(".members-list .table-body .table-row");
-                if (updatedRows.length > 0) {
-                    observer.disconnect();
-                    resolve();
-                }
-            });
-    
-            observer.observe(document.body, { childList: true, subtree: true });
-        });
-    }
-
     // Scrape faction page for users in hospital
     async function updateFactionMembers(key) {
-        // Ensure table has been loaded
-        await observeFactionMembers();
-
         // Verify API key after table has fully loaded
-        let apiKey = await getApiKey();
+        const apiKey = await getApiKey();
+        if (!apiKey) return (isRunning = false);
 
-        // Parse all rows to find members in hosp
+        // Parse all rows to find members in hosp.
         const rows = document.querySelectorAll(".members-list .table-body .table-row");
+        if (!rows.length) return (isRunning = false);
 
         // Create progress box
         let processed = 0;
@@ -180,31 +160,25 @@
         }
 
         progressDiv.textContent = `Revivable: ${revivable}`
+        isRunning = false;
     }
 
-    // Function to initialize the script when the faction profile page is loaded
-    async function initReviveAssistant() {
-        await updateFactionMembers();
-    }
-
+    // Use observer to initate script on web and track TornPDA web view changes
     function startObserver() {
-        // Track running observers to ensure only 1 is running at a time
-        let running = false;
+        if (observer) observer.disconnect(); 
 
-        const observer = new MutationObserver(() => {
-            if (!running && document.querySelector('.members-list .table-body')) {
-                running = true;
-                updateFactionMembers().finally(() => { running = false; });
+        observer = new MutationObserver(() => {
+            const now = Date.now();
+            if (!isRunning && now - lastRunTime > 5000 && document.querySelector(".members-list .table-body .table-row")) {
+                console.log("Detected faction member table update. Running script...");
+                observer.disconnect();
+                updateFactionMembers().finally(() => startObserver());
             }
         });
 
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.querySelector(".members-list .table-body") || document.body, { childList: true, subtree: true });
     }
 
-    window.addEventListener('load', async function () {
-        await updateFactionMembers();
-    });
-
-    // Start observor to allow TornPDA functionality
+    window.addEventListener('load', () => updateFactionMembers());
     startObserver();
 })();
