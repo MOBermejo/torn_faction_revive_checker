@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.24
+// @version      1.25
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -221,10 +221,7 @@
     }
 
     // Start observer + update faction members
-    window.addEventListener("load", () => {
-        updateFactionMembers();
-    });
-
+    updateFactionMembers();
     startObserver();
 
 })();
