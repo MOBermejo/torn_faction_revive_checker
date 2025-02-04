@@ -31,9 +31,9 @@
         // Validate key
         if (apiKey) {
             localStorage.setItem("reviveCheckApiKey", apiKey);
-            console.log('api key is', apiKey);
             const isValid = await validateApiKey(apiKey);
             if (isValid) {
+                console.log("API key has been validated.")
                 return apiKey;
             } else {
                 alert("API key is invalid. Please refresh the page and try again.");
