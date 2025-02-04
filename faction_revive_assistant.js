@@ -1,70 +1,67 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
-// @match        https://www.torn.com/factions.php?*
+// @match        https://www.torn.com/factions.php?step=profile*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=torn.com
-// @grant        GM_getValue
-// @grant        GM_setValue
-// @grant        GM_xmlhttpRequest
-// @connect      api.torn.com
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     // Set rate limit delay for API (in ms)
-    const API_DELAY = 1000;
+    const API_DELAY = 750;
 
-    // Obtain apiKey from store
-    let apiKey = GM_getValue("apiKey", "");
+    // Variables for script
+    let isRunning = false;
+    let observer = null;
+    let lastRunTime = 0;
 
-    // Helper function to wrap GM_xmlhttpRequest in a Promise
-    function httpRequest(options) {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                ...options,
-                onload: (response) => resolve(response),
-                onerror: (error) => reject(error),
-            });
-        });
-    }
 
     // Function to verify if an API key is available, and prompt for a key if not
-    async function verifyApiKey() {
+    async function getApiKey() {
+        // Attempt to retrieve key from local storage
+        let apiKey = localStorage.getItem("reviveCheckApiKey") || "";
         if (!apiKey) {
             apiKey = prompt("Please enter a public access API key to continue:")
-            if (apiKey) {
-                GM_setValue("apiKey", apiKey);
-                const isValid = await validateApiKey(apiKey);
-                if (isValid) {
-                    alert("Your API key has been validated and saved. Thank you.");
-                } else {
-                    alert("API key is not valid. Please refresh the page and try again.");
-                    GM_setValue("apiKey", "");
-                    throw new Error("Invalid API key.");
-                }
-
-            } else {
-                alert("API key not set. Please refresh the page and try again.")
-            }
         }
+
+        // Validate key
+        if (apiKey) {
+            localStorage.setItem("reviveCheckApiKey", apiKey);
+            const isValid = await validateApiKey(apiKey);
+            if (isValid) {
+                console.log("API key has been validated.")
+                return apiKey;
+            } else {
+                alert("API key is invalid. Please refresh the page and try again.");
+                localStorage.removeItem("reviveCheckApiKey");
+            }
+        } else {
+            return "";
+        }
+
     }
 
     // Validate an API key
     async function validateApiKey(key) {
         try {
-            const response = await httpRequest({
-                method: 'GET',
-                url: `https://api.torn.com/v2/user/`,
+            const response = await fetch(`https://api.torn.com/v2/user/`, {
                 headers: {
-                    "Authorization": `ApiKey ${key}`,
+                    "Authorization": `ApiKey ${key}`
                 }
             });
-            const data = JSON.parse(response.responseText);
-            return !data.error;
+
+            // Get JSON from response
+            const data = await response.json();
+            if (data.error) {
+                console.warn(`API Key validation failed: ${data.error.error}`);
+                localStorage.removeItem("reviveCheckApiKey");
+                return false;
+            }
+            return true;
         } catch (error) {
             console.error("Failed to validate API key:", error);
             return false;
@@ -72,31 +69,65 @@
     }
 
     // Get user data
-    async function queryUserData(userId) {
+    async function queryUserData(userId, key) {
         try {
-            const response = await httpRequest({
-                method: 'GET',
-                url: `https://api.torn.com/v2/user/${userId}/`,
+            const response = await fetch(`https://api.torn.com/v2/user/${userId}/`, {
                 headers: {
-                    "Authorization": `ApiKey ${apiKey}`,
+                    "Authorization": `ApiKey ${key}`
                 }
             });
-            const data = JSON.parse(response.responseText);
-            return data;
+            if (!response.ok) throw new Error("Unable to query user");
+            return await response.json();
         } catch (error) {
             console.error("Failed to validate API key:", error);
-            GM_setValue("apiKey", "");
+            localStorage.removeItem("reviveCheckApiKey");
             return false;
         }
     }
 
     // Scrape faction page for users in hospital
-    async function updateFactionMembers() {
-        // Set time since last update
-        let lastUpdate = 0;
+    async function updateFactionMembers(key) {
+        if (isRunning) return;
 
-        // Parse all rows to find members in hosp
-        const rows = document.querySelectorAll(".table-body .table-row");
+        // Variables to ensure function isn't trigger by observer too often
+        isRunning = true;
+        lastRunTime = Date.now();
+
+        // Verify API key after table has fully loaded
+        const apiKey = await getApiKey();
+        if (!apiKey) return (isRunning = false);
+
+        // Parse all rows to find members in hosp.
+        const rows = document.querySelectorAll(".members-list .table-body .table-row");
+        if (!rows.length) return (isRunning = false);
+
+        // Create progress box
+        let processed = 0, revivable = 0;
+        let apiRequestCount = 0;
+        const total = rows.length;
+
+        // Create div to display script progress
+        let progressDiv = document.getElementById("revive-progress");
+        if (!progressDiv) {
+            progressDiv = document.createElement("div");
+            progressDiv.id = "revive-progress";
+            progressDiv.style.position = "fixed";
+            progressDiv.style.bottom = "10px";
+            progressDiv.style.left = "10px";
+            progressDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+            progressDiv.style.color = "white";
+            progressDiv.style.padding = "10px";
+            progressDiv.style.borderRadius = "5px";
+            progressDiv.style.zIndex = "1000";
+            progressDiv.style.cursor = "pointer";
+            progressDiv.onclick = () => progressDiv.remove();
+            document.body.appendChild(progressDiv);
+        }
+        progressDiv.textContent = `Processing faction members...`;
+
+        // Track script run time for rate-limiting
+        let runTime = Date.now();
+
         for (const row of rows) {
             const profileLink = row.querySelector('a[href*="/profiles.php?XID="]');
             const status = row.querySelector(".status span").textContent.trim();
@@ -104,53 +135,93 @@
 
                 // Query user information and add indicator if they are in the hospital
                 const match = profileLink.href.match(/XID=(\d+)/);
-                if (match && match[1]) {
+                if (match) {
                     let userId = match[1];
 
-                    // Calculate the time since the last request
-                    const now = Date.now();
-                    const timeSinceLastUpdate = now - lastUpdate;
+                    // Calculate expected elapsed time
+                    const expectedElapsedTime = API_DELAY * apiRequestCount;
+                    const actualElapsedTime = Date.now() - runTime;
 
                     // Delay if necessary
-                    if (timeSinceLastUpdate < API_DELAY) {
-                        let delayTime = API_DELAY - timeSinceLastUpdate;
-                        console.log('delay time', delayTime);
-                        await new Promise((resolve) => setTimeout(resolve, delayTime));
+                    if (actualElapsedTime < expectedElapsedTime) {
+                        await new Promise(resolve => setTimeout(resolve, expectedElapsedTime - actualElapsedTime));
                     }
 
-                    let userData = await queryUserData(userId);
-                    if (userData && userData.revivable) {
+                    let userData = await queryUserData(userId, apiKey);
+                    if (userData?.revivable) {
                         // Get current user div
                         const userDiv = row.querySelector('[class^="userInfoBox"]');
 
-                        // Create a new div for the revive status
-                        const reviveInfo = `Reviveable`;
-                        const reviveDiv = document.createElement("div");
-                        reviveDiv.style.fontWeight = "bold";
-                        reviveDiv.style["margin-left"] = "8px";
-                        reviveDiv.style.color = "green";
-                        reviveDiv.textContent = reviveInfo;
+                        // Only update indicator once
+                        if (!userDiv.querySelector(".revivable-indicator")) {
+                            const reviveDiv = document.createElement("div");
+                            reviveDiv.className = "revivable-indicator";
+                            reviveDiv.style.fontWeight = "bold";
+                            reviveDiv.style.marginLeft = "8px";
+                            reviveDiv.style.color = "green";
+                            reviveDiv.textContent = "(Revivable)";
+                            userDiv.appendChild(reviveDiv);
+                        }
 
-                        // Append the new div to the userDiv
-                        userDiv.appendChild(reviveDiv);
+                        // Update revivable counter
+                        revivable++;
                     }
 
-                    // Record the last update timestamp
-                    lastUpdate = Date.now();
-
+                    // Increment API request count
+                    apiRequestCount++
                 }
             }
+
+            // Update progress indicator
+            processed++;
+            progressDiv.textContent = `Progress: ${total > 0 ? (processed / total * 100).toFixed(0) : 0}% | Revivable: ${revivable}`;
+        }
+
+        progressDiv.textContent = `Revivable: ${revivable}`
+        isRunning = false;
+    }
+
+    // Use observer to initate script on web and track TornPDA web view changes
+    function startObserver() {
+        if (observer) observer.disconnect();
+
+        // Create observer to track changes to the members list table
+        observer = new MutationObserver(() => {
+            const now = Date.now();
+            if (!isRunning && now - lastRunTime > 5000) {
+                const memberTable = mutations.some(mutation =>
+                    [...mutation.addedNodes].some(node =>
+                        node.nodeType === 1 && node.matches(".members-list .table-body .table-row")
+                    )
+                );
+
+                if (memberTable) {
+                    console.log("Detected faction member table update. Running script...");
+                    observer.disconnect(); // Stop observing while running
+                    updateFactionMembers().finally(() => startObserver());
+                }
+            }
+        });
+
+        // Observe members list for changes to the table
+        const membersList = document.querySelector(".members-list .table-body");
+        if (membersList) {
+            observer.observe(membersList, { childList: true, subtree: true });
+        }
+
+        // Observe main container div to handle refreshes on TornPDA
+        const contentWrapper = document.querySelector("#mainContainer");
+        if (contentWrapper) {
+            const pageObserver = new MutationObserver(() => {
+                console.log("Detected TornPDA page refresh on #mainContainer. Re-running script...");
+                updateFactionMembers();
+            });
+            pageObserver.observe(contentWrapper, { childList: true, subtree: true });
         }
     }
 
-    async function start() {
-        await verifyApiKey();
-        console.log("Processing faction members...");
-        await updateFactionMembers();
-        console.log("Faction members processed successfully");
-    }
+    // Start observer + update faction members
+    updateFactionMembers();
+    startObserver();
 
-    window.onload = function () {
-        start();
-    };
 })();
