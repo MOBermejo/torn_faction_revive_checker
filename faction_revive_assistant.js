@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.10
+// @version      1.12
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -15,7 +15,7 @@
     const API_DELAY = 750;
 
     // Function to verify if an API key is available, and prompt for a key if not
-    async function verifyApiKey() {
+    async function getApiKey() {
         // Attempt to retrieve key from store
         let apiKey = localStorage.getItem("reviveCheckApiKey") || "";
         if (apiKey) {
@@ -76,7 +76,7 @@
     // Function to monitor faction members table
     async function observeFactionMembers() {
         return new Promise(resolve => {
-            // Check if table has already loaded (TornPDA)
+            // Check if table has been populated
             const rows = document.querySelectorAll(".members-list .table-body .table-row");
             if (rows.length > 0) {
                 resolve();
@@ -102,7 +102,7 @@
         await observeFactionMembers();
 
         // Verify API key after table has fully loaded
-        let apiKey = await verifyApiKey();
+        let apiKey = await getApiKey();
 
         // Parse all rows to find members in hosp
         const rows = document.querySelectorAll(".members-list .table-body .table-row");
@@ -187,24 +187,24 @@
         await updateFactionMembers();
     }
 
-    // Use MutationObserver to detect when the faction page changes in Torn PDA
-    const observer = new MutationObserver((mutations) => {
-        for (let mutation of mutations) {
-            if (mutation.type === "childList") {
-                if (document.querySelector('.members-list .table-body')) { 
-                    observer.disconnect();
-                    initReviveAssistant(); 
-                    observer.observe(document.body, { childList: true, subtree: true });
-                }
+    function startObserver() {
+        // Track running observers to ensure only 1 is running at a time
+        let running = false;
+
+        const observer = new MutationObserver(() => {
+            if (!running && document.querySelector('.members-list .table-body')) {
+                running = true;
+                updateFactionMembers().finally(() => running = false);
             }
-        }
-    });
+        });
 
-    // 
-    observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
 
-    // 
     window.addEventListener('load', async function () {
         await updateFactionMembers();
     });
+
+    // Start observor to allow TornPDA functionality
+    startObserver();
 })();
