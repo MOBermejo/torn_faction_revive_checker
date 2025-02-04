@@ -220,7 +220,8 @@
         }
     }
 
-    // Start observer
+    // Start observer + update faction members
+    updateFactionMembers();
     startObserver();
 
 })();
