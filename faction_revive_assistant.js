@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.14
+// @version      1.16
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=torn.com
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     // Set rate limit delay for API (in ms)
@@ -24,18 +24,19 @@
     async function getApiKey() {
         // Attempt to retrieve key from local storage
         let apiKey = localStorage.getItem("reviveCheckApiKey") || "";
-        if (apiKey) {
-            return apiKey;
+        if (!apiKey) {
+            apiKey = prompt("Please enter a public access API key to continue:")
         }
 
-        apiKey = prompt("Please enter a public access API key to continue:")
+        // Validate key
         if (apiKey) {
             localStorage.setItem("reviveCheckApiKey", apiKey);
+            console.log('api key is', apiKey);
             const isValid = await validateApiKey(apiKey);
             if (isValid) {
                 return apiKey;
             } else {
-                alert("API key is not valid. Please refresh the page and try again.");
+                alert("API key is invalid. Please refresh the page and try again.");
                 localStorage.removeItem("reviveCheckApiKey");
             }
         } else {
@@ -52,7 +53,14 @@
                     "Authorization": `ApiKey ${key}`
                 }
             });
-            if (!response.ok) throw new Error("Unable to authorize");
+
+            // Get JSON from response
+            const data = await response.json();
+            if (data.error) {
+                console.warn(`API Key validation failed: ${data.error.error}`);
+                localStorage.removeItem("reviveCheckApiKey");
+                return false;
+            }
             return true;
         } catch (error) {
             console.error("Failed to validate API key:", error);
@@ -79,6 +87,10 @@
 
     // Scrape faction page for users in hospital
     async function updateFactionMembers(key) {
+        if (isRunning) return;
+        isRunning = true;
+        lastRunTime = Date.now();
+
         // Verify API key after table has fully loaded
         const apiKey = await getApiKey();
         if (!apiKey) return (isRunning = false);
@@ -88,20 +100,28 @@
         if (!rows.length) return (isRunning = false);
 
         // Create progress box
-        let processed = 0;
+        let processed = 0, revivable = 0;
         let apiRequestCount = 0;
-        let revivable = 0;
         const total = rows.length;
-        const progressDiv = document.createElement("div");
-        progressDiv.style.position = "fixed";
-        progressDiv.style.bottom = "10px";
-        progressDiv.style.left = "10px";
-        progressDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
-        progressDiv.style.color = "white";
-        progressDiv.style.padding = "10px";
-        progressDiv.style.borderRadius = "5px";
-        progressDiv.style.zIndex = "1000";
-        document.body.appendChild(progressDiv);
+
+        // Create div to display script progress
+        let progressDiv = document.getElementById("revive-progress");
+        if (!progressDiv) {
+            progressDiv = document.createElement("div");
+            progressDiv.id = "revive-progress";
+            progressDiv.style.position = "fixed";
+            progressDiv.style.bottom = "10px";
+            progressDiv.style.left = "10px";
+            progressDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+            progressDiv.style.color = "white";
+            progressDiv.style.padding = "10px";
+            progressDiv.style.borderRadius = "5px";
+            progressDiv.style.zIndex = "1000";
+            progressDiv.style.cursor = "pointer";
+            progressDiv.onclick = () => progressDiv.remove();
+            document.body.appendChild(progressDiv);
+        }
+        progressDiv.textContent = `Processing faction members...`;
 
         // If API is unavailable, then display message
         progressDiv.textContent = `Unable to verify API key.`;
@@ -165,7 +185,7 @@
 
     // Use observer to initate script on web and track TornPDA web view changes
     function startObserver() {
-        if (observer) observer.disconnect(); 
+        if (observer) observer.disconnect();
 
         observer = new MutationObserver(() => {
             const now = Date.now();
