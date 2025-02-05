@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.26
+// @version      1.27
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -19,6 +19,17 @@
     let isRunning = false;
     let observer = null;
     let lastRunTime = 0;
+
+    // Get local API key from local storage if possible
+    async function getApiKey() {
+        let apiKey = localStorage.reviveApiKey;
+        if (!apiKey) {
+            // Create div to enter API key (as opposed to using a prompt)
+            createApiKeyDiv();
+            return "";
+        }
+        return apiKey;
+    }
 
     async function createApiKeyDiv() {
         // Check if div has already been created
@@ -143,24 +154,24 @@
         isRunning = true;
         lastRunTime = Date.now();
 
-        // Verify API key after table has fully loaded
-        const apiKey = await getApiKey();
-        if (!apiKey) return (isRunning = false);
-
-        // Parse all rows to find members in hosp.
+        // Parse all rows to get faction members available
         const rows = document.querySelectorAll(".members-list .table-body .table-row");
         if (!rows.length) return (isRunning = false);
-
-        // Variables for progress box
-        let processed = 0, revivable = 0;
-        let apiRequestCount = 0;
-        const total = rows.length;
 
         // Get total faction members reported
         let totalMembers = getTotalFactionMembers();
 
         // Check if all faction members have loaded. If not, then exit script
         if (rows.length < totalMembers) return (isRunning = false);
+
+        // Verify API key after table has fully loaded
+        const apiKey = await getApiKey();
+        if (!apiKey) return (isRunning = false);
+
+        // Variables for progress box
+        let processed = 0, revivable = 0;
+        let apiRequestCount = 0;
+        const total = rows.length;
 
         // Create div to display script progress
         let progressDiv = document.getElementById("revive-progress");
