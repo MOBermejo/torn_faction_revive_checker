@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.25
+// @version      1.26
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -11,6 +11,7 @@
 (function () {
     'use strict';
 
+    // **CONFIGURABLE OPTIONS**
     // Set rate limit delay for API (in ms)
     const API_DELAY = 750;
 
@@ -19,31 +20,80 @@
     let observer = null;
     let lastRunTime = 0;
 
+    async function createApiKeyDiv() {
+        // Check if div has already been created
+        let apiDiv = document.getElementById('revive-check-api-prompt')
+        if (apiDiv) return;
 
-    // Function to verify if an API key is available, and prompt for a key if not
-    async function getApiKey() {
-        // Attempt to retrieve key from local storage
-        let apiKey = localStorage.getItem("reviveCheckApiKey") || "";
-        if (!apiKey) {
-            apiKey = prompt("Please enter a public access API key to continue:")
+        // Obtain API key (manual entry or previously set in local storage)
+        let apiKey = localStorage.reviveApiKey ? localStorage.reviveApiKey : "";
+
+        // Create div
+        apiEntryDiv = document.createElement("div");
+        apiEntryDiv.id = "revive-check-api-prompt";
+        apiEntryDiv.innerHTML = `
+            <label for="apiKeyInput">Revive API Key:</label></br>
+            <input type="text" id="apiKeyInput" style="width: 150px;" value="${apiKey}"/><br>
+            <button id="updateKey">Save Key</button>
+            <button id="clearKey">Clear Key</button>
+        `;
+
+        // Add a button to manually initiate script
+        let startButton = document.getElementById("start-revive-script");
+        if (!startButton) {
+            startButton = document.createElement("button");
+            startButton.id = "start-revive-script";
+            startButton.textContent = "Start Revive Check";
+            startButton.style.position = "fixed";
+            startButton.style.bottom = "50px";
+            startButton.style.left = "10px";
+            startButton.style.zIndex = "1000";
+            document.body.appendChild(startButton);
         }
+        startButton.onclick = updateFactionMembers;
 
-        // Validate key
-        if (apiKey) {
-            localStorage.setItem("reviveCheckApiKey", apiKey);
-            const isValid = await validateApiKey(apiKey);
-            if (isValid) {
-                console.log("API key has been validated.")
-                return apiKey;
-            } else {
-                alert("API key is invalid. Please refresh the page and try again.");
-                localStorage.removeItem("reviveCheckApiKey");
+        // Attach buttons to appropriate location
+        document.body.appendChild(apiEntryDiv);
+        document.body.appendChild(startButton);
+
+        // Create listeners for button functionality
+        document.getElementById("updateKey").onclick = async function () {
+            // Save apiKey value
+            let apiKey = document.getElementById("apiKeyInput").value.trim();
+            if (apiKey) {
+                const isValid = await validateApiKey(apiKey);
+                if (isValid) {
+                    localStorage.reviveApiKey = apiKey;
+                    apiDiv.remove();
+                } else {
+                    alert("Invalid API key. Try again.");
+                }
             }
-        } else {
-            return "";
-        }
+        };
 
+        document.getElementById("clearKey").onclick = function () {
+            localStorage.reviveApiKey = "";
+            alert("API key removed.");
+        };
+
+        // Manual start button
+        function addStartButton() {
+            let startButton = document.getElementById("initiateReviveCheck");
+            if (!startButton) {
+                startButton = document.createElement("button");
+                startButton.id = "initiateReviveCheck";
+                startButton.textContent = "Start Revive Check";
+                startButton.style.position = "fixed";
+                startButton.style.bottom = "50px";
+                startButton.style.left = "10px";
+                startButton.style.zIndex = "1000";
+                document.body.appendChild(startButton);
+            }
+            startButton.onclick = updateFactionMembers;
+        }
     }
+
+    
 
     // Validate an API key
     async function validateApiKey(key) {
@@ -58,7 +108,7 @@
             const data = await response.json();
             if (data.error) {
                 console.warn(`API Key validation failed: ${data.error.error}`);
-                localStorage.removeItem("reviveCheckApiKey");
+                localStorage.reviveApiKey = "";
                 return false;
             }
             return true;
@@ -89,7 +139,7 @@
     async function updateFactionMembers(key) {
         if (isRunning) return;
 
-        // Variables to ensure function isn't trigger by observer too often
+        // Variables to ensure function isn't trigger by observer while already running
         isRunning = true;
         lastRunTime = Date.now();
 
@@ -101,10 +151,16 @@
         const rows = document.querySelectorAll(".members-list .table-body .table-row");
         if (!rows.length) return (isRunning = false);
 
-        // Create progress box
+        // Variables for progress box
         let processed = 0, revivable = 0;
         let apiRequestCount = 0;
         const total = rows.length;
+
+        // Get total faction members reported
+        let totalMembers = getTotalFactionMembers();
+
+        // Check if all faction members have loaded. If not, then exit script
+        if (rows.length < totalMembers) return (isRunning = false);
 
         // Create div to display script progress
         let progressDiv = document.getElementById("revive-progress");
@@ -181,6 +237,20 @@
         isRunning = false;
     }
 
+    // Get the faction member count from faction info section
+    function getTotalFactionMembers() {
+        const memberText = document.querySelector(".f-info li:nth-child(3)")?.textContent.trim();
+        if (!memberText) return 0;
+
+        const memberCount = memberText.match(/(\d+)\s*\/\s*\d+/);
+        return memberCount ? parseInt(memberCount[1], 10) : 0;
+    }
+
+    // Get number of members currently loaded in the table
+    function getLoadedFactionMembers() {
+        return document.querySelectorAll(".members-list .table-body .table-row").length;
+    }
+
     // Use observer to initate script on web and track TornPDA web view changes
     function startObserver() {
         if (observer) observer.disconnect();
@@ -197,8 +267,12 @@
 
                 if (memberTable) {
                     console.log("Detected faction member table update. Running script...");
-                    observer.disconnect(); // Stop observing while running
-                    updateFactionMembers().finally(() => startObserver());
+                    let totalMembers = getTotalFactionMembers();
+                    let loadedMembers = getLoadedFactionMembers();
+                    if (loadedMembers === totalMembers) {
+                        observer.disconnect(); // Stop observing while running
+                        updateFactionMembers().finally(() => startObserver());
+                    }
                 }
             }
         });
@@ -213,8 +287,12 @@
         const contentWrapper = document.querySelector("#mainContainer");
         if (contentWrapper) {
             const pageObserver = new MutationObserver(() => {
-                console.log("Detected TornPDA page refresh on #mainContainer. Re-running script...");
-                updateFactionMembers();
+                let totalMembers = getTotalFactionMembers();
+                let loadedMembers = getLoadedFactionMembers();
+                if (loadedMembers === totalMembers) {
+                    console.log("Detected TornPDA page refresh on #mainContainer. Re-running script...");
+                    updateFactionMembers();
+                }
             });
             pageObserver.observe(contentWrapper, { childList: true, subtree: true });
         }
