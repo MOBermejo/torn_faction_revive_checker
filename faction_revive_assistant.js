@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.31
+// @version      1.32
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -18,6 +18,7 @@
     // Variables for script
     let isRunning = false;
     let isContinuous = false;
+    let lastRunTime = Date.now();
 
     function createApiKeyDiv() {
         let existingContainer = document.getElementById('revive-api-container');
