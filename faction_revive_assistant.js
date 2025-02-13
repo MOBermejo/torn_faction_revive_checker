@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         FRA
+// @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.30
+// @version      1.31
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -39,7 +39,7 @@
 
             container.innerHTML = `
                 <div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid gray;">
-                    FRA
+                    Faction Revive Assistant
                 </div>
                 <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
                     <label style="font-weight: bold; white-space: nowrap;">API Key:</label>
