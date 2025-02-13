@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.34
+// @version      1.35
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -314,10 +314,6 @@
             progressDiv.style.borderRadius = "5px";
             progressDiv.style.zIndex = "1000";
             progressDiv.style.cursor = "pointer";
-            progressDiv.style.fontSize = "14px";
-            progressDiv.style.fontWeight = "bold";
-            progressDiv.style.minWidth = "200px";
-            progressDiv.style.textAlign = "center";
             progressDiv.onclick = () => progressDiv.remove();
             document.body.appendChild(progressDiv);
         }
