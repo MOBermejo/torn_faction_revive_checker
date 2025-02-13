@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.32
+// @version      1.33
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -130,7 +130,19 @@
             return await response.json();
         } catch (error) {
             console.error("Failed to validate API key:", error);
-            localStorage.reviveApiKey = "";
+
+            // Update progress indicator
+            updateProgressIndicator("Invalid API key. Please check and try again.")
+
+            // Prevent script from running
+            isRunning = false;
+            isContinuous = false;
+
+            // Re-enable buttons
+            document.getElementById("toggleScan").disabled = false;
+            document.getElementById("initiateReviveCheck").disabled = false;
+
+            // Return false
             return false;
         }
     }
@@ -167,24 +179,8 @@
         let apiRequestCount = 0;
         const total = rows.length;
 
-        // Create div to display script progress
-        let progressDiv = document.getElementById("revive-progress");
-        if (!progressDiv) {
-            progressDiv = document.createElement("div");
-            progressDiv.id = "revive-progress";
-            progressDiv.style.position = "fixed";
-            progressDiv.style.bottom = "10px";
-            progressDiv.style.left = "10px";
-            progressDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
-            progressDiv.style.color = "white";
-            progressDiv.style.padding = "10px";
-            progressDiv.style.borderRadius = "5px";
-            progressDiv.style.zIndex = "1000";
-            progressDiv.style.cursor = "pointer";
-            progressDiv.onclick = () => progressDiv.remove();
-            document.body.appendChild(progressDiv);
-        }
-        progressDiv.textContent = `Processing faction members...`;
+        // Update progress indicator
+        updateProgressIndicator(`Processing faction members...`);
 
         // Track script run time for rate-limiting
         let runTime = Date.now();
@@ -251,10 +247,10 @@
 
             // Update progress indicator
             processed++;
-            progressDiv.textContent = `Progress: ${total > 0 ? (processed / total * 100).toFixed(0) : 0}% | Revivable: ${revivable}`;
+            updateProgressIndicator(`Progress: ${total > 0 ? (processed / total * 100).toFixed(0) : 0}% | Revivable: ${revivable}`);
         }
 
-        progressDiv.textContent = `Revivable: ${revivable}`
+        updateProgressIndicator(`Revivable: ${revivable}`);
         isRunning = false;
 
         // If continous scan is enabled, then reinitate after delay
@@ -295,6 +291,36 @@
             }
         }, 500);
     }
+    
+    // Progress indicator function
+    function updateProgressIndicator(text) {
+        let progressDiv = document.getElementById("revive-progress");
+    
+        if (!progressDiv) {
+            // Create a new progress box if it doesn’t exist
+            progressDiv = document.createElement("div");
+            progressDiv.id = "revive-progress";
+            progressDiv.style.position = "fixed";
+            progressDiv.style.bottom = "10px";
+            progressDiv.style.left = "10px";
+            progressDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+            progressDiv.style.color = "white";
+            progressDiv.style.padding = "10px";
+            progressDiv.style.borderRadius = "5px";
+            progressDiv.style.zIndex = "1000";
+            progressDiv.style.cursor = "pointer";
+            progressDiv.style.fontSize = "14px";
+            progressDiv.style.fontWeight = "bold";
+            progressDiv.style.minWidth = "200px";
+            progressDiv.style.textAlign = "center";
+            progressDiv.onclick = () => progressDiv.remove();
+            document.body.appendChild(progressDiv);
+        }
+
+        // Update text content
+        progressDiv.textContent = text;
+    }
+    
 
     // Create div to allow for functionality
     createApiKeyDiv();
