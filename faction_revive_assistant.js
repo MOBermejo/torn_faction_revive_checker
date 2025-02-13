@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         FRA
 // @namespace    http://tampermonkey.net/
-// @version      1.29
+// @version      1.30
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -12,8 +12,8 @@
     'use strict';
 
     // **CONFIGURABLE OPTIONS**
-    const API_DELAY = 750;          // Set rate limit delay for API (in ms)
-    const CONTINOUS_DELAY = 5000     // Set  delay for continous check button (in ms)
+    const API_DELAY = 750;              // Set rate limit delay for API (in ms)
+    const CONTINOUS_DELAY = 5000        // Set  delay for continous check button (in ms)
 
     // Variables for script
     let isRunning = false;
@@ -71,6 +71,12 @@
                 .revive-asst-btn:hover {
                     background: #555;
                     border-color: #777;
+                }
+                .revive-asst-btn:disabled {
+                    background: #333 !important;
+                    border-color: #222 !important;
+                    color: gray !important;
+                    cursor: not-allowed !important;
                 }
             `;
             document.head.appendChild(style);
@@ -210,15 +216,13 @@
                         if (userDiv) {
                             let reviveIcon = userDiv.querySelector(".revivable-indicator");
 
-                            // Determine correct text & color
-                            let newText = isRevivable ? "✅" : "❌"; // Checkmark if revivable, X if not
+                            // Symbol to denote revive icon
+                            let newText = isRevivable ? "✅" : "❌"; 
 
                             if (!reviveIcon) {
                                 // If the indicator doesn't exist, create it
                                 reviveIcon = document.createElement("span");
                                 reviveIcon.className = "revivable-indicator";
-                                reviveIcon.style.fontWeight = "bold";
-                                reviveIcon.style.marginLeft = "4px";
                                 reviveIcon.textContent = newText;
                                 userDiv.insertBefore(reviveIcon, userDiv.firstChild);
                                 console.log(`[FRA] Marked User ${userId} as ${isRevivable ? "revivable ✅" : "not revivable ❌"}.`);
@@ -233,8 +237,10 @@
 
                         // Update revivable counter
                         if (isRevivable) revivable++;
+
                     } else {
                         console.log(`[FRA] User ${userId} is NOT revivable.`);
+
                     }
 
                     // Increment API request count
@@ -255,6 +261,9 @@
             console.log(`[FRA] Continuous scan enabled. Starting in ${CONTINOUS_DELAY} ms.`);
             setTimeout(updateFactionMembers, CONTINOUS_DELAY);
         } else {
+            // Update buttons since run has finished
+            document.getElementById("toggleScan").disabled = false;
+            document.getElementById("initiateReviveCheck").disabled = false;
             console.log("[FRA] Revive check has been completed.");
         }
     }
