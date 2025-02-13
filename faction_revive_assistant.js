@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Faction Revive Assistant
+// @name         FRA
 // @namespace    http://tampermonkey.net/
-// @version      1.28
+// @version      1.29
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -12,121 +12,103 @@
     'use strict';
 
     // **CONFIGURABLE OPTIONS**
-    // Set rate limit delay for API (in ms)
-    const API_DELAY = 750;
+    const API_DELAY = 750;          // Set rate limit delay for API (in ms)
+    const CONTINOUS_DELAY = 5000     // Set  delay for continous check button (in ms)
 
     // Variables for script
     let isRunning = false;
-    let observer = null;
-    let lastRunTime = 0;
+    let isContinuous = false;
 
-    // Get local API key from local storage if possible
-    async function getApiKey() {
-        let apiKey = localStorage.reviveApiKey;
-        if (!apiKey) {
-            // Create div to enter API key (as opposed to using a prompt)
-            createApiKeyDiv();
-            return "";
-        }
-        return apiKey;
-    }
+    function createApiKeyDiv() {
+        let existingContainer = document.getElementById('revive-api-container');
+        if (existingContainer) return;
 
-    async function createApiKeyDiv() {
-        // Check if div has already been created
-        let apiDiv = document.getElementById('revive-check-api-prompt')
-        if (apiDiv) return;
+        waitForMembersList((membersList) => {
+            let container = document.createElement('div');
+            container.id = 'revive-api-container';
+            container.style.background = '#222';
+            container.style.color = 'white';
+            container.style.padding = '10px';
+            container.style.borderRadius = '5px';
+            container.style.marginBottom = '10px';
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.alignItems = 'left';
+            container.style.fontSize = '14px';
+            container.style.marginTop = '10px';
 
-        // Obtain API key (manual entry or previously set in local storage)
-        let apiKey = localStorage.reviveApiKey ? localStorage.reviveApiKey : "";
+            container.innerHTML = `
+                <div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid gray;">
+                    FRA
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+                    <label style="font-weight: bold; white-space: nowrap;">API Key:</label>
+                    <input type="text" id="apiKeyInput" style="width: 90%; padding: 4px; text-align: center; border-radius: 5px; border: 1px solid #ccc; background: #333; color: white;" value="${localStorage.reviveApiKey || ''}"/>
+                    <button id="updateKey" class="revive-asst-btn" style="padding: 4px 8px;">Save</button>
+                    <button id="clearKey" class="revive-asst-btn" style="padding: 4px 8px;">Clear</button>
+                </div>
+                <div style="margin-top: 8px; display: flex; gap: 6px;">
+                    <button id="toggleScan" class="revive-asst-btn" style="flex-grow: 1;">Start Continuous Scan</button>
+                    <button id="initiateReviveCheck" class="revive-asst-btn" style="flex-grow: 1;">Start Revive Check</button>
+                </div>
+            `;
 
-        // Create div
-        let apiEntryDiv = document.createElement("div");
-        apiEntryDiv.id = "revive-check-api-prompt";
-        apiEntryDiv.innerHTML = `
-            <label for="apiKeyInput">Revive API Key:</label></br>
-            <input type="text" id="apiKeyInput" style="width: 150px;" value="${apiKey}"/><br>
-            <button id="updateKey">Save Key</button>
-            <button id="clearKey">Clear Key</button>
-        `;
+            // Insert container before members list
+            membersList.insertAdjacentElement('beforebegin', container);
 
-        // Add a button to manually initiate script
-        let startButton = document.getElementById("start-revive-script");
-        if (!startButton) {
-            startButton = document.createElement("button");
-            startButton.id = "start-revive-script";
-            startButton.textContent = "Start Revive Check";
-            startButton.style.position = "fixed";
-            startButton.style.bottom = "50px";
-            startButton.style.left = "10px";
-            startButton.style.zIndex = "1000";
-            document.body.appendChild(startButton);
-        }
-        startButton.onclick = updateFactionMembers;
-
-        // Attach buttons to appropriate location
-        document.body.appendChild(apiEntryDiv);
-        document.body.appendChild(startButton);
-
-        // Create listeners for button functionality
-        document.getElementById("updateKey").onclick = async function () {
-            // Save apiKey value
-            let apiKey = document.getElementById("apiKeyInput").value.trim();
-            if (apiKey) {
-                const isValid = await validateApiKey(apiKey);
-                if (isValid) {
-                    localStorage.reviveApiKey = apiKey;
-                    apiDiv.remove();
-                } else {
-                    alert("Invalid API key. Try again.");
+            // Create style for buttons with "revive-asst-btn" class
+            const style = document.createElement('style');
+            style.innerHTML = `
+                .revive-asst-btn {
+                    background: #444;
+                    color: white;
+                    border: 1px solid #555;
+                    padding: 6px 12px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    transition: 0.2s;
                 }
-            }
-        };
-
-        document.getElementById("clearKey").onclick = function () {
-            localStorage.reviveApiKey = "";
-            alert("API key removed.");
-        };
-
-        // Manual start button
-        function addStartButton() {
-            let startButton = document.getElementById("initiateReviveCheck");
-            if (!startButton) {
-                startButton = document.createElement("button");
-                startButton.id = "initiateReviveCheck";
-                startButton.textContent = "Start Revive Check";
-                startButton.style.position = "fixed";
-                startButton.style.bottom = "50px";
-                startButton.style.left = "10px";
-                startButton.style.zIndex = "1000";
-                document.body.appendChild(startButton);
-            }
-            startButton.onclick = updateFactionMembers;
-        }
-    }
-
-    
-
-    // Validate an API key
-    async function validateApiKey(key) {
-        try {
-            const response = await fetch(`https://api.torn.com/v2/user/`, {
-                headers: {
-                    "Authorization": `ApiKey ${key}`
+                .revive-asst-btn:hover {
+                    background: #555;
+                    border-color: #777;
                 }
+            `;
+            document.head.appendChild(style);
+
+            // Button event handlers
+            document.getElementById("updateKey").addEventListener("click", () => {
+                let apiKey = document.getElementById("apiKeyInput").value.trim();
+                localStorage.reviveApiKey = apiKey;
+                alert('API key has been saved!')
             });
 
-            // Get JSON from response
-            const data = await response.json();
-            if (data.error) {
-                console.warn(`API Key validation failed: ${data.error.error}`);
+            document.getElementById("clearKey").addEventListener("click", () => {
                 localStorage.reviveApiKey = "";
-                return false;
-            }
-            return true;
-        } catch (error) {
-            console.error("Failed to validate API key:", error);
-            return false;
-        }
+                document.getElementById("apiKeyInput").value = "";
+                alert('API key has been cleared!')
+            });
+
+            document.getElementById("toggleScan").addEventListener("click", function () {
+                isContinuous = !isContinuous;
+                this.textContent = isContinuous ? "Stop Continuous Scan" : "Start Continuous Scan";
+                document.getElementById("initiateReviveCheck").disabled = isContinuous;
+                console.log(`[FRA] Continuous scan: ${isContinuous}`);
+                if (isContinuous) updateFactionMembers();
+            });
+
+            document.getElementById("initiateReviveCheck").addEventListener("click", function () {
+                if (!isRunning) {
+                    console.log("[FRA] Starting one-time revive check...");
+                    this.disabled = true;
+                    document.getElementById("toggleScan").disabled = true;
+                    updateFactionMembers().finally(() => {
+                        this.disabled = false;
+                        document.getElementById("toggleScan").disabled = false;
+                        console.log("[FRA] One-time revive check complete.");
+                    });
+                }
+            });
+        });
     }
 
     // Get user data
@@ -141,7 +123,7 @@
             return await response.json();
         } catch (error) {
             console.error("Failed to validate API key:", error);
-            localStorage.removeItem("reviveCheckApiKey");
+            localStorage.reviveApiKey = "";
             return false;
         }
     }
@@ -165,8 +147,13 @@
         if (rows.length < totalMembers) return (isRunning = false);
 
         // Verify API key after table has fully loaded
-        const apiKey = await getApiKey();
-        if (!apiKey) return (isRunning = false);
+        const apiKey = localStorage.reviveApiKey;
+        if (!apiKey) {
+            console.warn("[FRA] No API Key found!");
+            isRunning = false;
+            alert('API key is missing. Please enter the key and try again.');
+            return;
+        }
 
         // Variables for progress box
         let processed = 0, revivable = 0;
@@ -215,23 +202,39 @@
                     }
 
                     let userData = await queryUserData(userId, apiKey);
-                    if (userData?.revivable) {
-                        // Get current user div
-                        const userDiv = row.querySelector('[class^="userInfoBox"]');
+                    if (userData) {
+                        let isRevivable = userData?.revivable; // Check if user is revivable
 
-                        // Only update indicator once
-                        if (!userDiv.querySelector(".revivable-indicator")) {
-                            const reviveDiv = document.createElement("div");
-                            reviveDiv.className = "revivable-indicator";
-                            reviveDiv.style.fontWeight = "bold";
-                            reviveDiv.style.marginLeft = "8px";
-                            reviveDiv.style.color = "green";
-                            reviveDiv.textContent = "(Revivable)";
-                            userDiv.appendChild(reviveDiv);
+                        // Get current user div
+                        let userDiv = row.querySelector('[class^="userInfoBox"]');
+                        if (userDiv) {
+                            let reviveIcon = userDiv.querySelector(".revivable-indicator");
+
+                            // Determine correct text & color
+                            let newText = isRevivable ? "✅" : "❌"; // Checkmark if revivable, X if not
+
+                            if (!reviveIcon) {
+                                // If the indicator doesn't exist, create it
+                                reviveIcon = document.createElement("span");
+                                reviveIcon.className = "revivable-indicator";
+                                reviveIcon.style.fontWeight = "bold";
+                                reviveIcon.style.marginLeft = "4px";
+                                reviveIcon.textContent = newText;
+                                userDiv.insertBefore(reviveIcon, userDiv.firstChild);
+                                console.log(`[FRA] Marked User ${userId} as ${isRevivable ? "revivable ✅" : "not revivable ❌"}.`);
+                            } else {
+                                // If the indicator exists, update it if needed
+                                if (reviveIcon.textContent !== newText) {
+                                    reviveIcon.textContent = newText;
+                                    console.log(`[FRA] Updated User ${userId} to ${isRevivable ? "revivable ✅" : "not revivable ❌"}.`);
+                                }
+                            }
                         }
 
                         // Update revivable counter
-                        revivable++;
+                        if (isRevivable) revivable++;
+                    } else {
+                        console.log(`[FRA] User ${userId} is NOT revivable.`);
                     }
 
                     // Increment API request count
@@ -246,6 +249,14 @@
 
         progressDiv.textContent = `Revivable: ${revivable}`
         isRunning = false;
+
+        // If continous scan is enabled, then reinitate after delay
+        if (isContinuous) {
+            console.log(`[FRA] Continuous scan enabled. Starting in ${CONTINOUS_DELAY} ms.`);
+            setTimeout(updateFactionMembers, CONTINOUS_DELAY);
+        } else {
+            console.log("[FRA] Revive check has been completed.");
+        }
     }
 
     // Get the faction member count from faction info section
@@ -262,55 +273,20 @@
         return document.querySelectorAll(".members-list .table-body .table-row").length;
     }
 
-    // Use observer to initate script on web and track TornPDA web view changes
-    function startObserver() {
-        if (observer) observer.disconnect();
-
-        // Create observer to track changes to the members list table
-        observer = new MutationObserver(() => {
-            const now = Date.now();
-            if (!isRunning && now - lastRunTime > 5000) {
-                const memberTable = mutations.some(mutation =>
-                    [...mutation.addedNodes].some(node =>
-                        node.nodeType === 1 && node.matches(".members-list .table-body .table-row")
-                    )
-                );
-
-                if (memberTable) {
-                    console.log("Detected faction member table update. Running script...");
-                    let totalMembers = getTotalFactionMembers();
-                    let loadedMembers = getLoadedFactionMembers();
-                    if (loadedMembers === totalMembers) {
-                        observer.disconnect(); // Stop observing while running
-                        updateFactionMembers().finally(() => startObserver());
-                    }
-                }
+    // Function to wait for members list (using setInterval for ease of use)
+    function waitForMembersList(callback) {
+        console.log("[FRA] Waiting for members list...");
+        const checkInterval = setInterval(() => {
+            const membersList = document.querySelector('.members-list');
+            if (membersList) {
+                console.log("[FRA] Members list found!");
+                clearInterval(checkInterval);
+                callback(membersList);
             }
-        });
-
-        // Observe members list for changes to the table
-        const membersList = document.querySelector(".members-list .table-body");
-        if (membersList) {
-            observer.observe(membersList, { childList: true, subtree: true });
-        }
-
-        // Observe main container div to handle refreshes on TornPDA
-        const contentWrapper = document.querySelector("#mainContainer");
-        if (contentWrapper) {
-            const pageObserver = new MutationObserver(() => {
-                let totalMembers = getTotalFactionMembers();
-                let loadedMembers = getLoadedFactionMembers();
-                if (loadedMembers === totalMembers) {
-                    console.log("Detected TornPDA page refresh on #mainContainer. Re-running script...");
-                    updateFactionMembers();
-                }
-            });
-            pageObserver.observe(contentWrapper, { childList: true, subtree: true });
-        }
+        }, 500);
     }
 
-    // Start observer + update faction members
-    updateFactionMembers();
-    startObserver();
+    // Create div to allow for functionality
+    createApiKeyDiv();
 
 })();
