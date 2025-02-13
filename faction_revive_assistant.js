@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.33
+// @version      1.34
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -85,8 +85,13 @@
             // Button event handlers
             document.getElementById("updateKey").addEventListener("click", () => {
                 let apiKey = document.getElementById("apiKeyInput").value.trim();
-                localStorage.reviveApiKey = apiKey;
-                alert('API key has been saved!')
+                let isValid = validateApiKey(apiKey);
+                if (isValid) {
+                    localStorage.reviveApiKey = apiKey;
+                    alert('API key has been saved!')
+                } else {
+                    alert('API key validation failed. Please check the API key to ensure it is still active.')
+                }
             });
 
             document.getElementById("clearKey").addEventListener("click", () => {
@@ -319,6 +324,29 @@
 
         // Update text content
         progressDiv.textContent = text;
+    }
+
+    // Validate an API key
+    async function validateApiKey(key) {
+        try {
+            const response = await fetch(`https://api.torn.com/v2/user/`, {
+                headers: {
+                    "Authorization": `ApiKey ${key}`
+                }
+            });
+
+            // Get JSON from response
+            const data = await response.json();
+            if (data.error) {
+                console.warn(`API Key validation failed: ${data.error.error}`);
+                localStorage.reviveApiKey = "";
+                return false;
+            }
+            return true;
+        } catch (error) {
+            console.error("Failed to validate API key:", error);
+            return false;
+        }
     }
     
 
