@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-// @version      1.35
+// @version      1.4
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -18,7 +18,7 @@
     // Variables for script
     let isRunning = false;
     let isContinuous = false;
-    let lastRunTime = Date.now();
+    let isCanceled = false;
 
     function createApiKeyDiv() {
         let existingContainer = document.getElementById('revive-api-container');
@@ -27,39 +27,103 @@
         waitForMembersList((membersList) => {
             let container = document.createElement('div');
             container.id = 'revive-api-container';
-            container.style.background = '#222';
-            container.style.color = 'white';
-            container.style.padding = '10px';
-            container.style.borderRadius = '5px';
-            container.style.marginBottom = '10px';
-            container.style.display = 'flex';
-            container.style.flexDirection = 'column';
-            container.style.alignItems = 'left';
-            container.style.fontSize = '14px';
-            container.style.marginTop = '10px';
+            container.classList.add('revive-api-container');
 
             container.innerHTML = `
-                <div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid gray;">
+                <div class="revive-header">
                     Faction Revive Assistant
                 </div>
-                <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
-                    <label style="font-weight: bold; white-space: nowrap;">API Key:</label>
-                    <input type="text" id="apiKeyInput" style="width: 90%; padding: 4px; text-align: center; border-radius: 5px; border: 1px solid #ccc; background: #333; color: white;" value="${localStorage.reviveApiKey || ''}"/>
-                    <button id="updateKey" class="revive-asst-btn" style="padding: 4px 8px;">Save</button>
-                    <button id="clearKey" class="revive-asst-btn" style="padding: 4px 8px;">Clear</button>
+                <div class="revive-input-group">
+                    <label class="revive-label">API Key:</label>
+                    <div class="revive-input-wrapper">
+                        <input type="password" id="apiKeyInput" class="revive-input" value="${localStorage.reviveApiKey || ''}" />
+                        <button id="toggleApiKeyVisibility" class="toggle-visibility-btn">👁</button>
+                    </div>
+                    <button id="updateKey" class="revive-asst-btn">Save</button>
+                    <button id="clearKey" class="revive-asst-btn">Clear</button>
                 </div>
-                <div style="margin-top: 8px; display: flex; gap: 6px;">
-                    <button id="toggleScan" class="revive-asst-btn" style="flex-grow: 1;">Start Continuous Scan</button>
-                    <button id="initiateReviveCheck" class="revive-asst-btn" style="flex-grow: 1;">Start Revive Check</button>
+                <div class="revive-buttons">
+                    <button id="toggleScan" class="revive-asst-btn">Start Continuous Scan</button>
+                    <button id="initiateReviveCheck" class="revive-asst-btn">Start Revive Check</button>
                 </div>
             `;
 
             // Insert container before members list
             membersList.insertAdjacentElement('beforebegin', container);
 
-            // Create style for buttons with "revive-asst-btn" class
+            // Create styles
             const style = document.createElement('style');
             style.innerHTML = `
+                .revive-api-container {
+                    background: #222;
+                    color: white;
+                    padding: 10px;
+                    border-radius: 5px;
+                    margin-bottom: 10px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: flex-start;
+                    font-size: 14px;
+                    margin-top: 10px;
+                }
+
+                .revive-header {
+                    text-align: center;
+                    font-size: 16px;
+                    font-weight: bold;
+                    margin-bottom: 8px;
+                    padding-bottom: 8px;
+                    border-bottom: 1px solid gray;
+                    width: 100%;
+                }
+
+                .revive-input-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    width: 100%;
+                    flex-wrap: nowrap;
+                }
+
+                .revive-label {
+                    font-weight: bold;
+                    white-space: nowrap;
+                }
+
+                .revive-input-wrapper {
+                    position: relative;
+                    flex-grow: 1;
+                    min-width: 150px;
+                    display: flex;
+                    align-items: center;
+                }
+
+                .revive-input {
+                    flex-grow: 1;
+                    flex-shrink: 1;
+                    min-width: 100px;
+                    padding: 4px 30px 4px 8px;
+                    text-align: left;
+                    border-radius: 5px;
+                    border: 1px solid #ccc;
+                    background: #333;
+                    color: white;
+                }
+
+                .toggle-visibility-btn {
+                    position: absolute;
+                    right: 4px;
+                    background: transparent;
+                    border: none;
+                    cursor: pointer;
+                    color: white;
+                    font-size: 16px;
+                }
+
+                .toggle-visibility-btn:hover {
+                    color: #aaa;
+                }
+
                 .revive-asst-btn {
                     background: #444;
                     color: white;
@@ -68,24 +132,54 @@
                     border-radius: 5px;
                     cursor: pointer;
                     transition: 0.2s;
+                    white-space: nowrap;
+                    text-align: center;
                 }
+
                 .revive-asst-btn:hover {
                     background: #555;
                     border-color: #777;
                 }
+
                 .revive-asst-btn:disabled {
                     background: #333 !important;
                     border-color: #222 !important;
                     color: gray !important;
                     cursor: not-allowed !important;
                 }
+
+                .revive-buttons .revive-asst-btn {
+                    flex: 1;
+                }
+
+                .revive-input-group .revive-asst-btn {
+                    flex: 0 0 auto;
+                }
+
+                .revive-buttons {
+                    margin-top: 8px;
+                    display: flex;
+                    gap: 6px;
+                    flex-wrap: wrap;
+                    width: 100%;
+                }
+
+                @media (max-width: 600px) {
+                    .revive-asst-btn, .revive-input {
+                        width: 100%;
+                    }
+
+                    .revive-input-group .revive-asst-btn {
+                        width: auto;
+                    }
+                }
             `;
             document.head.appendChild(style);
 
             // Button event handlers
-            document.getElementById("updateKey").addEventListener("click", () => {
+            document.getElementById("updateKey").addEventListener("click", async () => {
                 let apiKey = document.getElementById("apiKeyInput").value.trim();
-                let isValid = validateApiKey(apiKey);
+                let isValid = await validateApiKey(apiKey);
                 if (isValid) {
                     localStorage.reviveApiKey = apiKey;
                     alert('API key has been saved!')
@@ -102,6 +196,11 @@
 
             document.getElementById("toggleScan").addEventListener("click", function () {
                 isContinuous = !isContinuous;
+                if (isContinuous) {
+                    isCanceled = false;
+                } else {
+                    isCanceled = true;
+                }
                 this.textContent = isContinuous ? "Stop Continuous Scan" : "Start Continuous Scan";
                 document.getElementById("initiateReviveCheck").disabled = isContinuous;
                 console.log(`[FRA] Continuous scan: ${isContinuous}`);
@@ -110,15 +209,24 @@
 
             document.getElementById("initiateReviveCheck").addEventListener("click", function () {
                 if (!isRunning) {
+                    isCanceled = false;
                     console.log("[FRA] Starting one-time revive check...");
-                    this.disabled = true;
+                    this.textContent = "Cancel Revive Check";
                     document.getElementById("toggleScan").disabled = true;
                     updateFactionMembers().finally(() => {
-                        this.disabled = false;
+                        this.textContent = "Start Revive Check";
                         document.getElementById("toggleScan").disabled = false;
                         console.log("[FRA] One-time revive check complete.");
                     });
+                } else {
+                    isCanceled = true;
+                    this.textContent = "Start Revive Check";
                 }
+            });
+
+            document.getElementById("toggleApiKeyVisibility").addEventListener("click", function () {
+                let input = document.getElementById("apiKeyInput");
+                input.type = input.type === "password" ? "text" : "password";
             });
         });
     }
@@ -137,7 +245,7 @@
             console.error("Failed to validate API key:", error);
 
             // Update progress indicator
-            updateProgressIndicator("Invalid API key. Please check and try again.")
+            updateProgressIndicator("Invalid API key. Please check key and try again.")
 
             // Prevent script from running
             isRunning = false;
@@ -158,10 +266,10 @@
 
         // Variables to ensure function isn't trigger by observer while already running
         isRunning = true;
-        lastRunTime = Date.now();
+        isCanceled = false;
 
         // Parse all rows to get faction members available
-        const rows = document.querySelectorAll(".members-list .table-body .table-row");
+        let rows = document.querySelectorAll(".members-list .table-body .table-row");
         if (!rows.length) return (isRunning = false);
 
         // Get total faction members reported
@@ -170,11 +278,16 @@
         // Check if all faction members have loaded. If not, then exit script
         if (rows.length < totalMembers) return (isRunning = false);
 
+        // Filter rows to exclude those hidden by TornTools
+        rows = Array.from(rows).filter(row => !row.classList.contains('tt-hidden'));
+        if (!rows.length) return (isRunning = false);
+
         // Verify API key after table has fully loaded
         const apiKey = localStorage.reviveApiKey;
         if (!apiKey) {
             console.warn("[FRA] No API Key found!");
             isRunning = false;
+            updateProgressIndicator(`Revive check canceled.`);
             alert('API key is missing. Please enter the key and try again.');
             return;
         }
@@ -191,6 +304,12 @@
         let runTime = Date.now();
 
         for (const row of rows) {
+            if (isCanceled) {
+                updateProgressIndicator("Revive check canceled.");
+                isRunning = false;
+                return;
+            }
+
             const profileLink = row.querySelector('a[href*="/profiles.php?XID="]');
             const status = row.querySelector(".status span").textContent.trim();
             if (profileLink && status === "Hospital") {
@@ -219,7 +338,7 @@
                             let reviveIcon = userDiv.querySelector(".revivable-indicator");
 
                             // Symbol to denote revive icon
-                            let newText = isRevivable ? "✅" : "❌"; 
+                            let newText = isRevivable ? "✅" : "❌";
 
                             if (!reviveIcon) {
                                 // If the indicator doesn't exist, create it
@@ -241,7 +360,7 @@
                         if (isRevivable) revivable++;
 
                     } else {
-                        console.log(`[FRA] User ${userId} is NOT revivable.`);
+                        console.log(`[FRA] Unable to query data for user: ${userId}`);
 
                     }
 
@@ -296,11 +415,11 @@
             }
         }, 500);
     }
-    
+
     // Progress indicator function
     function updateProgressIndicator(text) {
         let progressDiv = document.getElementById("revive-progress");
-    
+
         if (!progressDiv) {
             // Create a new progress box if it doesn’t exist
             progressDiv = document.createElement("div");
@@ -344,7 +463,7 @@
             return false;
         }
     }
-    
+
 
     // Create div to allow for functionality
     createApiKeyDiv();
