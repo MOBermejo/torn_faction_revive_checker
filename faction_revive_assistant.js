@@ -330,7 +330,7 @@
 
                     let userData = await queryUserData(userId, apiKey);
                     if (userData) {
-                        let isRevivable = userData?.revivable; // Check if user is revivable
+                        let isRevivable = userData?.profile?.revivable; // Check if user is revivable
 
                         // Get current user div
                         let userDiv = row.querySelector('[class^="userInfoBox"]');
