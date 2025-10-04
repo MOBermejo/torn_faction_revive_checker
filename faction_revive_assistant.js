@@ -1,11 +1,7 @@
 // ==UserScript==
 // @name         Faction Revive Assistant
 // @namespace    http://tampermonkey.net/
-<<<<<<< HEAD
-// @version      1.2
-=======
-// @version      1.4
->>>>>>> dev
+// @version      1.3
 // @description  Checks all factions users in the hospital, and determines if they are revivable.
 // @author       Marzen [3385879]
 // @match        https://www.torn.com/factions.php?step=profile*
@@ -22,11 +18,7 @@
     // Variables for script
     let isRunning = false;
     let isContinuous = false;
-<<<<<<< HEAD
-    let lastRunTime = Date.now();
-=======
     let isCanceled = false;
->>>>>>> dev
 
     function createApiKeyDiv() {
         let existingContainer = document.getElementById('revive-api-container');
@@ -35,32 +27,6 @@
         waitForMembersList((membersList) => {
             let container = document.createElement('div');
             container.id = 'revive-api-container';
-<<<<<<< HEAD
-            container.style.background = '#222';
-            container.style.color = 'white';
-            container.style.padding = '10px';
-            container.style.borderRadius = '5px';
-            container.style.marginBottom = '10px';
-            container.style.display = 'flex';
-            container.style.flexDirection = 'column';
-            container.style.alignItems = 'left';
-            container.style.fontSize = '14px';
-            container.style.marginTop = '10px';
-
-            container.innerHTML = `
-                <div style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid gray;">
-                    Faction Revive Assistant
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
-                    <label style="font-weight: bold; white-space: nowrap;">API Key:</label>
-                    <input type="text" id="apiKeyInput" style="width: 90%; padding: 4px; text-align: center; border-radius: 5px; border: 1px solid #ccc; background: #333; color: white;" value="${localStorage.reviveApiKey || ''}"/>
-                    <button id="updateKey" class="revive-asst-btn" style="padding: 4px 8px;">Save</button>
-                    <button id="clearKey" class="revive-asst-btn" style="padding: 4px 8px;">Clear</button>
-                </div>
-                <div style="margin-top: 8px; display: flex; gap: 6px;">
-                    <button id="toggleScan" class="revive-asst-btn" style="flex-grow: 1;">Start Continuous Scan</button>
-                    <button id="initiateReviveCheck" class="revive-asst-btn" style="flex-grow: 1;">Start Revive Check</button>
-=======
             container.classList.add('revive-api-container');
 
             container.innerHTML = `
@@ -79,18 +45,12 @@
                 <div class="revive-buttons">
                     <button id="toggleScan" class="revive-asst-btn">Start Continuous Scan</button>
                     <button id="initiateReviveCheck" class="revive-asst-btn">Start Revive Check</button>
->>>>>>> dev
                 </div>
             `;
 
             // Insert container before members list
             membersList.insertAdjacentElement('beforebegin', container);
 
-<<<<<<< HEAD
-            // Create style for buttons with "revive-asst-btn" class
-            const style = document.createElement('style');
-            style.innerHTML = `
-=======
             // Create styles
             const style = document.createElement('style');
             style.innerHTML = `
@@ -164,7 +124,6 @@
                     color: #aaa;
                 }
 
->>>>>>> dev
                 .revive-asst-btn {
                     background: #444;
                     color: white;
@@ -173,30 +132,20 @@
                     border-radius: 5px;
                     cursor: pointer;
                     transition: 0.2s;
-<<<<<<< HEAD
-                }
-=======
                     white-space: nowrap;
                     text-align: center;
                 }
 
->>>>>>> dev
                 .revive-asst-btn:hover {
                     background: #555;
                     border-color: #777;
                 }
-<<<<<<< HEAD
-=======
-
->>>>>>> dev
                 .revive-asst-btn:disabled {
                     background: #333 !important;
                     border-color: #222 !important;
                     color: gray !important;
                     cursor: not-allowed !important;
                 }
-<<<<<<< HEAD
-=======
 
                 .revive-buttons .revive-asst-btn {
                     flex: 1;
@@ -223,20 +172,13 @@
                         width: auto;
                     }
                 }
->>>>>>> dev
             `;
             document.head.appendChild(style);
 
             // Button event handlers
-<<<<<<< HEAD
-            document.getElementById("updateKey").addEventListener("click", () => {
-                let apiKey = document.getElementById("apiKeyInput").value.trim();
-                let isValid = validateApiKey(apiKey);
-=======
             document.getElementById("updateKey").addEventListener("click", async () => {
                 let apiKey = document.getElementById("apiKeyInput").value.trim();
                 let isValid = await validateApiKey(apiKey);
->>>>>>> dev
                 if (isValid) {
                     localStorage.reviveApiKey = apiKey;
                     alert('API key has been saved!')
@@ -253,14 +195,11 @@
 
             document.getElementById("toggleScan").addEventListener("click", function () {
                 isContinuous = !isContinuous;
-<<<<<<< HEAD
-=======
                 if (isContinuous) {
                     isCanceled = false;
                 } else {
                     isCanceled = true;
                 }
->>>>>>> dev
                 this.textContent = isContinuous ? "Stop Continuous Scan" : "Start Continuous Scan";
                 document.getElementById("initiateReviveCheck").disabled = isContinuous;
                 console.log(`[FRA] Continuous scan: ${isContinuous}`);
@@ -269,17 +208,6 @@
 
             document.getElementById("initiateReviveCheck").addEventListener("click", function () {
                 if (!isRunning) {
-<<<<<<< HEAD
-                    console.log("[FRA] Starting one-time revive check...");
-                    this.disabled = true;
-                    document.getElementById("toggleScan").disabled = true;
-                    updateFactionMembers().finally(() => {
-                        this.disabled = false;
-                        document.getElementById("toggleScan").disabled = false;
-                        console.log("[FRA] One-time revive check complete.");
-                    });
-                }
-=======
                     isCanceled = false;
                     console.log("[FRA] Starting one-time revive check...");
                     this.textContent = "Cancel Revive Check";
@@ -298,7 +226,6 @@
             document.getElementById("toggleApiKeyVisibility").addEventListener("click", function () {
                 let input = document.getElementById("apiKeyInput");
                 input.type = input.type === "password" ? "text" : "password";
->>>>>>> dev
             });
         });
     }
@@ -317,11 +244,7 @@
             console.error("Failed to validate API key:", error);
 
             // Update progress indicator
-<<<<<<< HEAD
-            updateProgressIndicator("Invalid API key. Please check and try again.")
-=======
             updateProgressIndicator("Invalid API key. Please check key and try again.")
->>>>>>> dev
 
             // Prevent script from running
             isRunning = false;
@@ -342,17 +265,10 @@
 
         // Variables to ensure function isn't trigger by observer while already running
         isRunning = true;
-<<<<<<< HEAD
-        lastRunTime = Date.now();
-
-        // Parse all rows to get faction members available
-        const rows = document.querySelectorAll(".members-list .table-body .table-row");
-=======
         isCanceled = false;
 
         // Parse all rows to get faction members available
         let rows = document.querySelectorAll(".members-list .table-body .table-row");
->>>>>>> dev
         if (!rows.length) return (isRunning = false);
 
         // Get total faction members reported
@@ -361,22 +277,16 @@
         // Check if all faction members have loaded. If not, then exit script
         if (rows.length < totalMembers) return (isRunning = false);
 
-<<<<<<< HEAD
-=======
         // Filter rows to exclude those hidden by TornTools
         rows = Array.from(rows).filter(row => !row.classList.contains('tt-hidden'));
         if (!rows.length) return (isRunning = false);
 
->>>>>>> dev
         // Verify API key after table has fully loaded
         const apiKey = localStorage.reviveApiKey;
         if (!apiKey) {
             console.warn("[FRA] No API Key found!");
             isRunning = false;
-<<<<<<< HEAD
-=======
             updateProgressIndicator(`Revive check canceled.`);
->>>>>>> dev
             alert('API key is missing. Please enter the key and try again.');
             return;
         }
@@ -419,11 +329,7 @@
 
                     let userData = await queryUserData(userId, apiKey);
                     if (userData) {
-<<<<<<< HEAD
-                        let isRevivable = userData?.revivable; // Check if user is revivable
-=======
                         let isRevivable = userData?.profile?.revivable; // Check if user is revivable
->>>>>>> dev
 
                         // Get current user div
                         let userDiv = row.querySelector('[class^="userInfoBox"]');
@@ -431,11 +337,7 @@
                             let reviveIcon = userDiv.querySelector(".revivable-indicator");
 
                             // Symbol to denote revive icon
-<<<<<<< HEAD
-                            let newText = isRevivable ? "✅" : "❌"; 
-=======
                             let newText = isRevivable ? "✅" : "❌";
->>>>>>> dev
 
                             if (!reviveIcon) {
                                 // If the indicator doesn't exist, create it
@@ -457,11 +359,7 @@
                         if (isRevivable) revivable++;
 
                     } else {
-<<<<<<< HEAD
-                        console.log(`[FRA] User ${userId} is NOT revivable.`);
-=======
                         console.log(`[FRA] Unable to query data for user: ${userId}`);
->>>>>>> dev
 
                     }
 
@@ -516,19 +414,11 @@
             }
         }, 500);
     }
-<<<<<<< HEAD
-    
-    // Progress indicator function
-    function updateProgressIndicator(text) {
-        let progressDiv = document.getElementById("revive-progress");
-    
-=======
 
     // Progress indicator function
     function updateProgressIndicator(text) {
         let progressDiv = document.getElementById("revive-progress");
 
->>>>>>> dev
         if (!progressDiv) {
             // Create a new progress box if it doesn’t exist
             progressDiv = document.createElement("div");
@@ -572,11 +462,6 @@
             return false;
         }
     }
-<<<<<<< HEAD
-    
-=======
-
->>>>>>> dev
 
     // Create div to allow for functionality
     createApiKeyDiv();
